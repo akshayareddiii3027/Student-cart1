@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { FiX, FiTrash2, FiMinus, FiPlus } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
 import Payment from './Payment';
 import './Cart.css';
 
 const Cart = ({ items, onClose, onUpdateQuantity, onRemoveItem, onClearCart }) => {
+    const { user } = useAuth();
     const [showPayment, setShowPayment] = useState(false);
     const totalPrice = items.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0);
     const totalItems = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
@@ -16,7 +18,7 @@ const Cart = ({ items, onClose, onUpdateQuantity, onRemoveItem, onClearCart }) =
                         setShowPayment(false);
                         onClose();
                     }}
-                    totalAmount={totalPrice}
+                    totalAmount={user?.isStudentVerified ? Math.round(totalPrice * 0.9) : totalPrice}
                     itemCount={totalItems}
                     items={items}
                     onClearCart={onClearCart}
@@ -46,7 +48,14 @@ const Cart = ({ items, onClose, onUpdateQuantity, onRemoveItem, onClearCart }) =
                             {items.map((item, index) => (
                                 <div key={index} className="cart-item">
                                     <div className="item-image">
-                                        <img src={item.image} alt={item.name} />
+                                        <img 
+                                          src={item.image.startsWith('http') ? item.image : `http://localhost:5000${item.image}`} 
+                                          alt={item.name} 
+                                          onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.src = "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?q=80&w=800";
+                                          }}
+                                        />
                                     </div>
                                     <div className="item-details">
                                         <h4>{item.name}</h4>
@@ -85,9 +94,15 @@ const Cart = ({ items, onClose, onUpdateQuantity, onRemoveItem, onClearCart }) =
                                 <span>Shipping</span>
                                 <span>Free</span>
                             </div>
+                            {user?.isStudentVerified && (
+                                <div className="summary-row" style={{ color: '#10b981', fontWeight: 'bold' }}>
+                                    <span>Student Discount (10%)</span>
+                                    <span>-₹{Math.round(totalPrice * 0.1)}</span>
+                                </div>
+                            )}
                             <div className="summary-row total">
                                 <span>Total</span>
-                                <span>₹{totalPrice}</span>
+                                <span>₹{user?.isStudentVerified ? Math.round(totalPrice * 0.9) : totalPrice}</span>
                             </div>
                             <button className="checkout-btn" onClick={() => setShowPayment(true)}>Proceed to Checkout</button>
                             <button className="continue-shopping-btn" onClick={onClose}>

@@ -1,59 +1,60 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { FiX, FiCreditCard, FiSmartphone, FiDollarSign, FiTruck } from 'react-icons/fi';
+import { FiX, FiCreditCard, FiSmartphone, FiDollarSign, FiTruck, FiMapPin, FiLoader } from 'react-icons/fi';
 import { SiGooglepay, SiPaypal } from 'react-icons/si';
 import './Payment.css';
 
 const Payment = ({ onClose, totalAmount, itemCount, items, onClearCart }) => {
     const { user } = useAuth();
+    
+    // Step management: 'shipping', 'payment', 'processing', 'success'
+    const [step, setStep] = useState('shipping');
+    
+    // Shipping Details State
+    const [shippingDetails, setShippingDetails] = useState({
+        fullName: '',
+        address: '',
+        city: '',
+        postalCode: '',
+        country: '',
+        phone: ''
+    });
+
+    // Payment Details State
     const [selectedPayment, setSelectedPayment] = useState(null);
     const [cardDetails, setCardDetails] = useState({ number: '', expiry: '', cvv: '' });
     const [upiId, setUpiId] = useState('');
-    const [orderPlaced, setOrderPlaced] = useState(false);
+    
+    // Global Status
     const [errorMsg, setErrorMsg] = useState('');
     const [placedOrder, setPlacedOrder] = useState(null);
 
     const paymentMethods = [
-        {
-            id: 'card',
-            name: 'Credit/Debit Card',
-            icon: <FiCreditCard size={28} />,
-            description: 'Visa, Mastercard, Amex'
-        },
-        {
-            id: 'upi',
-            name: 'UPI',
-            icon: <FiSmartphone size={28} />,
-            description: 'Google Pay, PhonePe, Paytm'
-        },
-        {
-            id: 'netbanking',
-            name: 'Net Banking',
-            icon: <FiDollarSign size={28} />,
-            description: 'All major banks'
-        },
-        {
-            id: 'googlepay',
-            name: 'Google Pay',
-            icon: <SiGooglepay size={28} />,
-            description: 'Fast & secure'
-        },
-        {
-            id: 'paypal',
-            name: 'PayPal',
-            icon: <SiPaypal size={28} />,
-            description: 'International payments'
-        },
-        {
-            id: 'cod',
-            name: 'Cash on Delivery',
-            icon: <FiTruck size={28} />,
-            description: 'Pay when you receive'
-        }
+        { id: 'card', name: 'Credit/Debit Card', icon: <FiCreditCard size={28} />, description: 'Visa, Mastercard, Amex' },
+        { id: 'upi', name: 'UPI', icon: <FiSmartphone size={28} />, description: 'Google Pay, PhonePe, Paytm' },
+        { id: 'netbanking', name: 'Net Banking', icon: <FiDollarSign size={28} />, description: 'All major banks' },
+        { id: 'googlepay', name: 'Google Pay', icon: <SiGooglepay size={28} />, description: 'Fast & secure' },
+        { id: 'paypal', name: 'PayPal', icon: <SiPaypal size={28} />, description: 'International payments' },
+        { id: 'cod', name: 'Cash on Delivery', icon: <FiTruck size={28} />, description: 'Pay when you receive' }
     ];
 
-    const handlePlaceOrder = async () => {
+    const validateShipping = () => {
+        if (!shippingDetails.fullName || !shippingDetails.address || !shippingDetails.city || !shippingDetails.postalCode || !shippingDetails.country || !shippingDetails.phone) {
+            setErrorMsg('Please fill in all shipping fields');
+            return false;
+        }
+        setErrorMsg('');
+        return true;
+    };
+
+    const handleNextToPayment = () => {
+        if (validateShipping()) {
+            setStep('payment');
+        }
+    };
+
+    const handlePlaceOrder = () => {
         setErrorMsg('');
 
         if (!user) {
@@ -66,189 +67,359 @@ const Payment = ({ onClose, totalAmount, itemCount, items, onClearCart }) => {
             return;
         }
 
-        if (selectedPayment === 'card' && (!cardDetails.number || !cardDetails.expiry || !cardDetails.cvv)) {
-            setErrorMsg('Please enter card details');
-            return;
+        if (selectedPayment === 'card') {
+            if (cardDetails.number.length < 16) {
+                setErrorMsg('Please enter a valid 16-digit card number');
+                return;
+            }
+            if (!cardDetails.expiry || !cardDetails.cvv) {
+                setErrorMsg('Please enter complete card details');
+                return;
+            }
         }
 
         if (selectedPayment === 'upi' && !upiId) {
-            setErrorMsg('Please enter UPI ID');
+            setErrorMsg('Please enter a valid UPI ID');
+            return;
+        }
+
+        // Proceed to processing phase
+        setStep('processing');
+        processPayment();
+    };
+
+    // Dynamically load razorpay script
+    const loadRazorpay = () => {
+        return new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+            script.onload = () => resolve(true);
+            script.onerror = () => resolve(false);
+            document.body.appendChild(script);
+        });
+    };
+
+    const processPayment = async () => {
+        if (selectedPayment === 'cod') {
+            // Cash on delivery bypasses Razorpay
+            await finalizeOrder('Cash on Delivery', 'cod_pending');
+            return;
+        }
+
+        const res = await loadRazorpay();
+        if (!res) {
+            setErrorMsg('Razorpay SDK failed to load. Are you online?');
+            setStep('payment');
             return;
         }
 
         try {
-            const config = {
-                headers: {
-                    Authorization: `Bearer ${user.token}`,
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            // 1. Create order on backend
+            const { data } = await axios.post('/api/payment/create-order', { amount: totalAmount }, config);
+            
+            if (!data.success) {
+                setErrorMsg('Failed to initialize payment.');
+                setStep('payment');
+                return;
+            }
+
+            // 2. Open Razorpay Checkout
+            const options = {
+                key: data.key,
+                amount: data.data.amount,
+                currency: data.data.currency,
+                name: "StudentCart",
+                description: "Purchase Premium Student Essentials",
+                image: "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?q=80&w=200", // Logo
+                order_id: data.data.id,
+                handler: async function (response) {
+                    try {
+                        // 3. Verify Payment
+                        const verifyRes = await axios.post('/api/payment/verify', {
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature
+                        }, config);
+
+                        if (verifyRes.data.success) {
+                            await finalizeOrder('Razorpay', response.razorpay_payment_id);
+                        } else {
+                            setErrorMsg('Payment verification failed.');
+                            setStep('payment');
+                        }
+                    } catch (err) {
+                        setErrorMsg('Payment verification error.');
+                        setStep('payment');
+                    }
                 },
+                prefill: {
+                    name: shippingDetails.fullName,
+                    email: user.email,
+                    contact: shippingDetails.phone
+                },
+                theme: {
+                    color: "#06b6d4" // Primary color var(--primary)
+                }
             };
 
+            const paymentObject = new window.Razorpay(options);
+            paymentObject.on('payment.failed', function (response) {
+                setErrorMsg(response.error.description);
+                setStep('payment');
+            });
+            paymentObject.open();
+
+        } catch (error) {
+            setErrorMsg('Payment initialization error. Please try again.');
+            setStep('payment');
+        }
+    };
+
+    const finalizeOrder = async (methodName, paymentId) => {
+        try {
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
             const orderData = {
-                items: items.map(item => ({
+                userId: user.id || user._id,
+                customerName: shippingDetails.fullName,
+                phoneNumber: shippingDetails.phone,
+                shippingAddress: {
+                    address: shippingDetails.address,
+                    city: shippingDetails.city,
+                    postalCode: shippingDetails.postalCode,
+                    country: shippingDetails.country
+                },
+                orderedItems: items.map(item => ({
                     productId: item.id || item._id,
-                    name: item.name,
+                    productName: item.name,
                     quantity: item.quantity || 1,
                     price: item.price,
                     image: item.image
                 })),
-                paymentMethod: paymentMethods.find(m => m.id === selectedPayment)?.name,
-                shippingAddress: {
-                    address: "123 Campus Road",
-                    city: "College City",
-                    postalCode: "123456",
-                    country: "India"
-                },
-                totalAmount
+                totalAmount: totalAmount,
+                paymentMethod: methodName,
+                orderStatus: 'Order Placed',
+                orderDate: new Date(),
+                razorpayPaymentId: paymentId
             };
 
-            const { data } = await axios.post('/api/orders', orderData, config);
+            const { data } = await axios.post('/api/orders/create', orderData, config);
             
             if (data.success) {
                 setPlacedOrder(data.data);
-                setOrderPlaced(true);
+                setStep('success');
                 if (onClearCart) onClearCart();
             }
         } catch (error) {
-            setErrorMsg(error.response?.data?.message || 'Error placing order');
+            setErrorMsg(error.response?.data?.message || 'Error saving order. Please contact support.');
+            setStep('payment');
         }
     };
 
-    if (orderPlaced && placedOrder) {
-        return (
-            <div className="payment-overlay" onClick={onClose}>
-                <div className="payment-container" onClick={(e) => e.stopPropagation()}>
-                    <button className="close-btn" onClick={onClose}>
-                        <FiX size={24} />
-                    </button>
-                    
-                    <div className="order-success">
-                        <div className="success-icon">✓</div>
-                        <h2>Order Placed Successfully!</h2>
-                        <p>Thank you for your purchase</p>
-                        
-                        <div className="order-details">
-                            <div className="detail-row">
-                                <span>Order ID:</span>
-                                <span className="detail-value">#{placedOrder._id}</span>
-                            </div>
-                            <div className="detail-row">
-                                <span>Total Amount:</span>
-                                <span className="detail-value">₹{totalAmount}</span>
-                            </div>
-                            <div className="detail-row">
-                                <span>Items:</span>
-                                <span className="detail-value">{itemCount}</span>
-                            </div>
-                            <div className="detail-row">
-                                <span>Payment Method:</span>
-                                <span className="detail-value">{placedOrder.paymentMethod}</span>
-                            </div>
-                            <div className="detail-row">
-                                <span>Estimated Delivery:</span>
-                                <span className="detail-value">{placedOrder.deliveryDays} Business Days</span>
-                            </div>
-                        </div>
+    // ------------- RENDERERS -------------
 
-                        <button className="continue-btn" onClick={onClose}>
-                            Continue Shopping
-                        </button>
+    const renderShippingStep = () => (
+        <div className="checkout-step animate-fade-in">
+            <h3 className="step-title"><FiMapPin /> Shipping Details</h3>
+            <div className="shipping-form">
+                <input 
+                    type="text" placeholder="Full Name" 
+                    value={shippingDetails.fullName} 
+                    onChange={e => setShippingDetails({...shippingDetails, fullName: e.target.value})} 
+                />
+                <input 
+                    type="text" placeholder="Phone Number" 
+                    value={shippingDetails.phone} 
+                    onChange={e => setShippingDetails({...shippingDetails, phone: e.target.value})} 
+                />
+                <textarea 
+                    placeholder="Street Address" 
+                    value={shippingDetails.address} 
+                    onChange={e => setShippingDetails({...shippingDetails, address: e.target.value})} 
+                    rows="3"
+                ></textarea>
+                <div className="form-row">
+                    <input 
+                        type="text" placeholder="City" 
+                        value={shippingDetails.city} 
+                        onChange={e => setShippingDetails({...shippingDetails, city: e.target.value})} 
+                    />
+                    <input 
+                        type="text" placeholder="Postal Code" 
+                        value={shippingDetails.postalCode} 
+                        onChange={e => setShippingDetails({...shippingDetails, postalCode: e.target.value})} 
+                    />
+                </div>
+                <input 
+                    type="text" placeholder="Country" 
+                    value={shippingDetails.country} 
+                    onChange={e => setShippingDetails({...shippingDetails, country: e.target.value})} 
+                />
+            </div>
+            <button className="primary-btn mt-4" onClick={handleNextToPayment}>Continue to Payment</button>
+        </div>
+    );
+
+    const renderPaymentStep = () => (
+        <div className="checkout-step animate-fade-in">
+            <div className="flex-between mb-3">
+                <h3 className="step-title m-0">Select Payment</h3>
+                <button className="back-link" onClick={() => setStep('shipping')}>Edit Shipping</button>
+            </div>
+            <div className="payment-methods">
+                {paymentMethods.map((method) => (
+                    <div
+                        key={method.id}
+                        className={`payment-method ${selectedPayment === method.id ? 'selected' : ''}`}
+                        onClick={() => setSelectedPayment(method.id)}
+                    >
+                        <div className="method-icon">{method.icon}</div>
+                        <div className="method-info">
+                            <h4>{method.name}</h4>
+                            <p>{method.description}</p>
+                        </div>
+                        <div className={`radio ${selectedPayment === method.id ? 'checked' : ''}`}></div>
                     </div>
+                ))}
+            </div>
+
+            {selectedPayment === 'card' && (
+                <div className="payment-form mt-3 animate-fade-in">
+                    <h4>Card Details</h4>
+                    <input
+                        type="text" placeholder="Card Number (16 digits)"
+                        value={cardDetails.number}
+                        onChange={(e) => setCardDetails({ ...cardDetails, number: e.target.value.replace(/\D/g,'') })}
+                        maxLength="16"
+                    />
+                    <div className="form-row">
+                        <input
+                            type="text" placeholder="MM/YY"
+                            value={cardDetails.expiry}
+                            onChange={(e) => setCardDetails({ ...cardDetails, expiry: e.target.value })}
+                            maxLength="5"
+                        />
+                        <input
+                            type="password" placeholder="CVV"
+                            value={cardDetails.cvv}
+                            onChange={(e) => setCardDetails({ ...cardDetails, cvv: e.target.value.replace(/\D/g,'') })}
+                            maxLength="3"
+                        />
+                    </div>
+                </div>
+            )}
+
+            {selectedPayment === 'upi' && (
+                <div className="payment-form mt-3 animate-fade-in">
+                    <h4>Enter UPI ID</h4>
+                    <input
+                        type="text" placeholder="example@bank"
+                        value={upiId} onChange={(e) => setUpiId(e.target.value)}
+                    />
+                    <p className="form-hint">You will receive a payment request on your UPI app</p>
+                </div>
+            )}
+
+            <button className="primary-btn mt-4 pulse-btn" onClick={handlePlaceOrder}>
+                Pay ₹{totalAmount} & Place Order
+            </button>
+        </div>
+    );
+
+    const renderProcessingStep = () => (
+        <div className="processing-container animate-fade-in">
+            <FiLoader size={48} className="spinner-icon text-primary" />
+            <h2 className="mt-3">Processing Payment...</h2>
+            <p className="text-muted">Please do not close this window or hit back.</p>
+            <div className="secure-badge">
+                <FiDollarSign /> Secure 256-bit Encryption
+            </div>
+        </div>
+    );
+
+    const renderSuccessStep = () => (
+        <div className="success-container animate-fade-in">
+            <div className="success-icon-large">✓</div>
+            <h2>Payment Successful!</h2>
+            <p>Your order has been confirmed.</p>
+            
+            <div className="order-details-card mt-4">
+                <div className="detail-row">
+                    <span>Order ID:</span>
+                    <span className="detail-value">#{placedOrder._id}</span>
+                </div>
+                <div className="detail-row">
+                    <span>Total Paid:</span>
+                    <span className="detail-value text-primary font-bold">₹{totalAmount}</span>
+                </div>
+                <div className="detail-row">
+                    <span>Payment Method:</span>
+                    <span className="detail-value">{placedOrder.paymentMethod}</span>
+                </div>
+                <div className="detail-row">
+                    <span>Shipping To:</span>
+                    <span className="detail-value truncate" title={shippingDetails.address}>
+                        {shippingDetails.city}, {shippingDetails.postalCode}
+                    </span>
+                </div>
+                <div className="detail-row">
+                    <span>Estimated Delivery:</span>
+                    <span className="detail-value">{placedOrder.deliveryDays} Business Days</span>
                 </div>
             </div>
-        );
-    }
+
+            <button className="primary-btn mt-4" onClick={onClose}>
+                Continue Shopping
+            </button>
+        </div>
+    );
 
     return (
-        <div className="payment-overlay" onClick={onClose}>
-            <div className="payment-container" onClick={(e) => e.stopPropagation()}>
-                <div className="payment-header">
-                    <h2>Choose Payment Method</h2>
-                    <button className="close-btn" onClick={onClose}>
-                        <FiX size={24} />
-                    </button>
-                </div>
-
-                {errorMsg && <p style={{ color: 'red', textAlign: 'center' }}>{errorMsg}</p>}
-
-                <div className="payment-summary">
-                    <div className="summary-item">
-                        <span>Items:</span>
-                        <span>{itemCount}</span>
+        <div className="payment-overlay" onClick={step === 'processing' ? null : onClose}>
+            <div className="payment-container glass" onClick={(e) => e.stopPropagation()}>
+                
+                {step !== 'processing' && step !== 'success' && (
+                    <div className="payment-header">
+                        <h2>Secure Checkout</h2>
+                        <button className="close-btn" onClick={onClose}>
+                            <FiX size={24} />
+                        </button>
                     </div>
-                    <div className="summary-item">
-                        <span>Shipping:</span>
-                        <span>Free</span>
-                    </div>
-                    <div className="summary-item total-amount">
-                        <span>Total:</span>
-                        <span>₹{totalAmount}</span>
-                    </div>
-                </div>
+                )}
 
-                <div className="payment-methods">
-                    {paymentMethods.map((method) => (
-                        <div
-                            key={method.id}
-                            className={`payment-method ${selectedPayment === method.id ? 'selected' : ''}`}
-                            onClick={() => setSelectedPayment(method.id)}
-                        >
-                            <div className="method-icon">{method.icon}</div>
-                            <div className="method-info">
-                                <h4>{method.name}</h4>
-                                <p>{method.description}</p>
-                            </div>
-                            <div className={`radio ${selectedPayment === method.id ? 'checked' : ''}`}></div>
+                {step !== 'processing' && step !== 'success' && (
+                    <div className="progress-bar-container">
+                        <div className={`progress-step ${step === 'shipping' || step === 'payment' ? 'active' : ''}`}>1. Shipping</div>
+                        <div className="progress-line"></div>
+                        <div className={`progress-step ${step === 'payment' ? 'active' : ''}`}>2. Payment</div>
+                    </div>
+                )}
+
+                {errorMsg && <div className="error-banner">{errorMsg}</div>}
+
+                {step !== 'processing' && step !== 'success' && (
+                    <div className="payment-summary mb-3">
+                        <div className="summary-item">
+                            <span>Items ({itemCount}):</span>
+                            <span>₹{totalAmount}</span>
                         </div>
-                    ))}
-                </div>
-
-                {/* Card Details Form */}
-                {selectedPayment === 'card' && (
-                    <div className="payment-form">
-                        <h4>Card Details</h4>
-                        <input
-                            type="text"
-                            placeholder="Card Number (16 digits)"
-                            value={cardDetails.number}
-                            onChange={(e) => setCardDetails({ ...cardDetails, number: e.target.value })}
-                            maxLength="16"
-                        />
-                        <div className="form-row">
-                            <input
-                                type="text"
-                                placeholder="MM/YY"
-                                value={cardDetails.expiry}
-                                onChange={(e) => setCardDetails({ ...cardDetails, expiry: e.target.value })}
-                                maxLength="5"
-                            />
-                            <input
-                                type="text"
-                                placeholder="CVV"
-                                value={cardDetails.cvv}
-                                onChange={(e) => setCardDetails({ ...cardDetails, cvv: e.target.value })}
-                                maxLength="3"
-                            />
+                        <div className="summary-item">
+                            <span>Shipping:</span>
+                            <span className="text-success font-bold">FREE</span>
+                        </div>
+                        <div className="summary-item total-amount">
+                            <span>Total:</span>
+                            <span className="text-primary">₹{totalAmount}</span>
                         </div>
                     </div>
                 )}
 
-                {/* UPI Form */}
-                {selectedPayment === 'upi' && (
-                    <div className="payment-form">
-                        <h4>Enter UPI ID</h4>
-                        <input
-                            type="text"
-                            placeholder="example@bank"
-                            value={upiId}
-                            onChange={(e) => setUpiId(e.target.value)}
-                        />
-                        <p className="form-hint">You will be redirected to your UPI app to complete the payment</p>
-                    </div>
-                )}
-
-                <button className="place-order-btn" onClick={handlePlaceOrder}>
-                    Place Order - ₹{totalAmount}
-                </button>
+                <div className="checkout-content">
+                    {step === 'shipping' && renderShippingStep()}
+                    {step === 'payment' && renderPaymentStep()}
+                    {step === 'processing' && renderProcessingStep()}
+                    {step === 'success' && renderSuccessStep()}
+                </div>
             </div>
         </div>
     );

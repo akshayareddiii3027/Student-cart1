@@ -45,7 +45,14 @@ const ComboPacks = ({ onAddToCart }) => {
                         <Tilt key={combo.id || combo._id} tiltMaxAngleX={10} tiltMaxAngleY={10} scale={1.02} transitionSpeed={2000} className="combo-card glass" style={{ border: '1px solid rgba(255,255,255,0.05)', background: 'var(--surface)' }}>
                             <div className="combo-image-wrapper">
                                 <span className="discount-badge">{combo.discount}</span>
-                                <img src={combo.image} alt={combo.name} />
+                                <img 
+                                    src={combo.image} 
+                                    alt={combo.name} 
+                                    onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.src = "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?q=80&w=800&fit=crop"; // Reliable fallback
+                                    }}
+                                />
                             </div>
                             <div className="combo-info">
                                 <h3>{combo.name}</h3>

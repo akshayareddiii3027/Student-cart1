@@ -15,7 +15,7 @@ const productSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: ['Trendy Outfits', 'Essentials', 'Electronics', 'Mobile Subscriptions']
+    enum: ['Trendy Outfits', 'Essentials', 'Electronics', 'Mobile Subscriptions', 'Combo Packs']
   },
   price: {
     type: Number,
@@ -41,6 +41,16 @@ const productSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  brand: {
+    type: String,
+    default: 'Generic'
+  },
+  sizes: [{
+    type: String
+  }],
+  colors: [{
+    type: String
+  }],
   description: {
     type: String,
     required: true
@@ -49,6 +59,10 @@ const productSchema = new mongoose.Schema({
     type: Number,
     default: 100,
     min: 0
+  },
+  quantity: {
+    type: Number,
+    default: 1
   },
   reviews: [{
     userId: mongoose.Schema.Types.ObjectId,

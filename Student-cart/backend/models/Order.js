@@ -1,39 +1,56 @@
 const mongoose = require('mongoose');
 
 const orderSchema = new mongoose.Schema({
-  user: {
+  userId: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
     ref: 'User'
   },
-  items: [{
-    productId: { type: Number },
-    name: { type: String },
-    quantity: { type: Number },
-    price: { type: Number },
-    image: { type: String }
-  }],
+  customerName: { type: String },
+  phoneNumber: { type: String },
   shippingAddress: {
     address: { type: String, required: true },
     city: { type: String, required: true },
     postalCode: { type: String, required: true },
     country: { type: String, required: true }
   },
+  orderedItems: [{
+    productId: { type: String },
+    productName: { type: String },
+    quantity: { type: Number },
+    price: { type: Number },
+    image: { type: String }
+  }],
   paymentMethod: {
     type: String,
     required: true
+  },
+  paymentStatus: {
+    type: String,
+    default: 'Pending'
   },
   totalAmount: {
     type: Number,
     required: true
   },
-  status: {
+  orderStatus: {
     type: String,
-    default: 'Confirmed'
+    enum: ['Order Placed', 'Confirmed', 'Packed', 'Shipped', 'Delivered'],
+    default: 'Order Placed'
+  },
+  orderDate: {
+    type: Date,
+    default: Date.now
   },
   deliveryDays: {
     type: String,
     default: '3-5'
+  },
+  razorpayOrderId: {
+    type: String
+  },
+  razorpayPaymentId: {
+    type: String
   }
 }, { timestamps: true });
 

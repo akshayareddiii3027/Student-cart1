@@ -8,6 +8,8 @@ import ProductListing from './components/ProductListing';
 import LoginModal from './components/LoginModal';
 import Cart from './components/Cart';
 import Profile from './components/Profile';
+import AdminDashboard from './components/admin/AdminDashboard';
+import AdminLogin from './components/admin/AdminLogin';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function App() {
@@ -15,8 +17,20 @@ function App() {
   const [cart, setCart] = useState([]);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [currentView, setCurrentView] = useState('home'); // 'home' or 'profile'
+  const [currentView, setCurrentView] = useState('home'); // 'home', 'profile', or 'admin'
   const [searchTerm, setSearchTerm] = useState('');
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+
+  React.useEffect(() => {
+    if (theme === 'light') {
+      document.body.classList.add('light-theme');
+    } else {
+      document.body.classList.remove('light-theme');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light');
 
   const handleCategorySelect = (categoryName) => {
     setSelectedCategory(categoryName);
@@ -63,6 +77,22 @@ function App() {
     setCart([]);
   }
 
+  if (currentView === 'admin-dashboard') {
+    return (
+      <div className="App">
+        <AdminDashboard onExit={() => setCurrentView('home')} />
+      </div>
+    );
+  }
+
+  if (currentView === 'admin-login') {
+    return (
+      <div className="App">
+        <AdminLogin onLoginSuccess={() => setCurrentView('admin-dashboard')} />
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <Header 
@@ -71,8 +101,11 @@ function App() {
         onCartClick={() => setIsCartOpen(!isCartOpen)} 
         onProfileClick={() => setCurrentView('profile')}
         onHomeClick={() => setCurrentView('home')}
+        onAdminClick={() => setCurrentView('admin-dashboard')}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
+        theme={theme}
+        toggleTheme={toggleTheme}
       />
       
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
@@ -99,7 +132,13 @@ function App() {
             >
               <Hero />
               <CategoryShop onSelectCategory={handleCategorySelect} />
-              <ProductListing selectedCategory={selectedCategory} searchTerm={searchTerm} onAddToCart={handleAddToCart} />
+              <ProductListing 
+                selectedCategory={selectedCategory} 
+                searchTerm={searchTerm} 
+                onAddToCart={handleAddToCart} 
+                onClearSearch={() => { setSearchTerm(''); setSelectedCategory(null); }}
+                cartItems={cart}
+              />
               <ComboPacks onAddToCart={handleAddToCart} />
               <MobilePlans />
             </motion.div>
@@ -120,13 +159,14 @@ function App() {
       <footer style={{
         textAlign: 'center',
         padding: '3rem',
-        backgroundColor: 'var(--surface)',
+        backgroundColor: 'var(--bg-secondary)',
         color: 'var(--text-muted)',
         marginTop: '2rem',
-        borderTop: '1px solid rgba(255,255,255,0.05)'
+        borderTop: '1px solid var(--glass-border)'
       }}>
         <p>&copy; 2026 StudentCart. All rights reserved.</p>
         <p style={{ opacity: 0.7, fontSize: '0.9rem', marginTop: '0.5rem', color: 'var(--primary)' }}>Tailored essentials for your college life.</p>
+        <p style={{ opacity: 0.5, fontSize: '0.8rem', marginTop: '1rem', cursor: 'pointer' }} onClick={() => setCurrentView('admin-login')}>Admin Portal Login</p>
       </footer>
     </div>
   );

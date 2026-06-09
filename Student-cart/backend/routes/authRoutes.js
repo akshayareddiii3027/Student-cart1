@@ -26,6 +26,7 @@ router.post('/register', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        isStudentVerified: user.isStudentVerified,
         token: generateToken(user._id)
       }
     });
@@ -48,6 +49,7 @@ router.post('/login', async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.role,
+          isStudentVerified: user.isStudentVerified,
           token: generateToken(user._id)
         }
       });

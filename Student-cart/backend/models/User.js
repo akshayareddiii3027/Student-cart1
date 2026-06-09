@@ -19,6 +19,13 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: 'user',
   },
+  isStudentVerified: {
+    type: Boolean,
+    default: false,
+  },
+  studentIdUrl: {
+    type: String,
+  }
 }, { timestamps: true });
 
 userSchema.pre('save', async function(next) {
