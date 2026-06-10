@@ -339,18 +339,15 @@ const Payment = ({ onClose, totalAmount, itemCount, items, onClearCart }) => {
 
     const renderSuccessStep = () => (
         <div className="success-container animate-fade-in">
-            <div className="success-icon-large">✓</div>
-            <h2>Payment Successful!</h2>
-            <p>Your order has been confirmed.</p>
+            <div className="success-icon-large" style={{ color: '#10b981', fontSize: '4rem', textAlign: 'center' }}>✓</div>
+            <h2 style={{ textAlign: 'center', marginTop: '1rem' }}>Order Placed Successfully!</h2>
+            <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Thank you for your purchase. Your order has been confirmed.</p>
             
-            <div className="order-details-card mt-4">
+            <div className="order-details-card mt-4" style={{ background: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                <h4 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>Order Details</h4>
                 <div className="detail-row">
                     <span>Order ID:</span>
-                    <span className="detail-value">#{placedOrder._id}</span>
-                </div>
-                <div className="detail-row">
-                    <span>Total Paid:</span>
-                    <span className="detail-value text-primary font-bold">₹{totalAmount}</span>
+                    <span className="detail-value" style={{ fontFamily: 'monospace' }}>#{placedOrder._id}</span>
                 </div>
                 <div className="detail-row">
                     <span>Payment Method:</span>
@@ -364,11 +361,36 @@ const Payment = ({ onClose, totalAmount, itemCount, items, onClearCart }) => {
                 </div>
                 <div className="detail-row">
                     <span>Estimated Delivery:</span>
-                    <span className="detail-value">{placedOrder.deliveryDays} Business Days</span>
+                    <span className="detail-value text-success" style={{ color: '#10b981' }}>{placedOrder.deliveryDays} Business Days</span>
+                </div>
+
+                <div className="ordered-items-list mt-3" style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
+                    <h5 style={{ marginBottom: '0.8rem' }}>Items</h5>
+                    <div style={{ maxHeight: '150px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                        {placedOrder.orderedItems && placedOrder.orderedItems.map((item, idx) => (
+                            <div key={idx} className="flex-between mb-2" style={{ alignItems: 'center', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                    <div style={{ width: '40px', height: '40px', borderRadius: '6px', overflow: 'hidden', backgroundColor: '#f3f4f6' }}>
+                                        <img src={item.image && item.image.startsWith('http') ? item.image : `http://localhost:5000${item.image}`} alt={item.productName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?q=80&w=800"; }} />
+                                    </div>
+                                    <div style={{ maxWidth: '150px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        <span>{item.productName}</span>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Qty: {item.quantity}</div>
+                                    </div>
+                                </div>
+                                <span style={{ fontWeight: '500' }}>₹{item.price * item.quantity}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="detail-row mt-3" style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1rem', fontSize: '1.1rem' }}>
+                    <span style={{ fontWeight: 'bold' }}>Total Paid:</span>
+                    <span className="detail-value text-primary font-bold">₹{totalAmount}</span>
                 </div>
             </div>
 
-            <button className="primary-btn mt-4" onClick={onClose}>
+            <button className="primary-btn mt-4 pulse-btn" style={{ width: '100%', padding: '0.8rem' }} onClick={onClose}>
                 Continue Shopping
             </button>
         </div>
