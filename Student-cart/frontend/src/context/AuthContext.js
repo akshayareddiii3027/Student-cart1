@@ -2,7 +2,7 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 
 // Ensure API requests point to the backend server directly to fix login connection issues
-axios.defaults.baseURL = 'http://localhost:5000';
+axios.defaults.baseURL = 'https://student-cart1-1.onrender.com';
 
 const AuthContext = createContext();
 
