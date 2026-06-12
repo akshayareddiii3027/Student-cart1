@@ -255,7 +255,7 @@ const ProductListing = ({ selectedCategory, searchTerm, onAddToCart, onClearSear
                                                     <FiHeart fill={wishlistIds.has(product.id || product._id) ? '#ef4444' : 'none'} color={wishlistIds.has(product.id || product._id) ? '#ef4444' : '#fff'} size={22} />
                                                 </button>
                                                 <img 
-                                                    src={product.image.startsWith('http') ? product.image : `http://localhost:5000${product.image}`} 
+                                                    src={product.image.startsWith('http') ? product.image : `https://student-cart1-1.onrender.com${product.image}`} 
                                                     alt={product.name}
                                                     onError={(e) => {
                                                         e.target.onerror = null;
